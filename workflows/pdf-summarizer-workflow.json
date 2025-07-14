@@ -1,0 +1,263 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pdf-parser-v2",
+        "responseMode": "=onReceived",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -620,
+        0
+      ],
+      "id": "65ee7c7c-27b0-42cb-af42-48ca5f31043d",
+      "name": "Webhook",
+      "webhookId": "{{ YOUR WEBHOOK ID HERE}}"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fileUrl = $json.body?.fileUrl;\n\nif (!fileUrl || typeof fileUrl !== 'string') {\n  throw new Error(\"Missing or invalid 'fileUrl' inside body.\");\n}\n\nconst match = fileUrl.match(/[-\\w]{25,}/);\n\nif (!match) {\n  throw new Error(\"Could not extract fileId from fileUrl.\");\n}\n\nreturn {\n  json: {\n    ...$json.body, // flatten the body into the top-level JSON\n    fileId: match[0]\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        0
+      ],
+      "id": "6438ab4d-23cc-4266-9d94-07261f324712",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{$json[\"fileId\"]}}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        20
+      ],
+      "id": "07713474-2369-42c7-848a-38b97b84a936",
+      "name": "HTTP Request",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "{{ YOUR GOOGLE DRIVE CREDENTIAL ID HERE }}",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hbtokvkuhtguzhuzhfnk.supabase.co/rest/v1/summarizers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{YOUR_SUPABASE_API_KEY || YOUR_SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{YOUR_SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\": \"{{ $json.email }}\",\n  \"docType\": \"{{ $json.docType }}\",\n  \"summary\": \"{{ $json.summary }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        0
+      ],
+      "id": "e51c9892-5929-42df-b5aa-34b393845b5c",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        680,
+        -20
+      ],
+      "id": "9b30fa1e-de56-40b1-87c6-91c20bf5cc8e",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "GPT-3.5-TURBO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Please provide a comprehensive summary of the following document: {{ $json.text }} Focus on key points, main arguments, and actionable insights"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        960,
+        0
+      ],
+      "id": "c781d4be-8687-4e53-b1d0-99ad88dd9bca",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "{{YOUR_OPENAI_API_ID}}",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "079b838d-8d0d-4cc2-85f6-40b455aef2ea",
+              "name": "summary",
+              "value": "={{ $json.message.content }}",
+              "type": "string"
+            },
+            {
+              "id": "3d10c155-59d9-4e44-97e0-b12cd5845241",
+              "name": "docType",
+              "value": "={{ $('HTTP Request').item.json.docType }}",
+              "type": "string"
+            },
+            {
+              "id": "163168c4-7994-4a00-952c-91e3842f3660",
+              "name": "fileUrl",
+              "value": "={{ $('HTTP Request').item.json.fileUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "e1acd8aa-43b3-4d03-98ed-46773c324ab7",
+              "name": "email",
+              "value": "={{ $('HTTP Request').item.json.emailFromgoogle }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1420,
+        0
+      ],
+      "id": "857202fe-8162-425d-b95d-43fab0a63563",
+      "name": "Edit Fields"
+    }
+  ],
+  "connections": {
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
