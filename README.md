@@ -28,6 +28,8 @@ This automation pipeline allows users to submit documents (PDF, TXT, DOC) via a 
 ## 🚀 Workflow Diagram
 ![Workflow Diagram](assets/workflow-diagram.png)
 
+![PDF SUMMARIZER N8N WORFLOW](assets/n8n-workflow.png)
+
 
 ## 💡 Setup Instructions
 
